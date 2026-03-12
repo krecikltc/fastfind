@@ -10,63 +10,63 @@ FOLDER_Z_DANYMI = 'dane'
 
 def szukaj_w_plikach(szukany_user):
     """
-    Funkcja przeszukuje pliki .txt i .json w poszukiwaniu podanej nazwy użytkownika.
-    Zwraca listę słowników ze znaleziskami.
+    Funkcja przeszukuje pliki .txt (format: Nazwa:ip) i .json w poszukiwaniu podanej nazwy użytkownika.
     """
     znalezione_wyniki = []
-    szukany_user_lower = szukany_user.lower()  # Dla wyszukiwania bez względu na wielkość liter
+    szukany_user_lower = szukany_user.lower()
 
     try:
-        # Iterujemy przez wszystkie pliki w folderze 'dane'
         for nazwa_pliku in os.listdir(FOLDER_Z_DANYMI):
             sciezka_pliku = os.path.join(FOLDER_Z_DANYMI, nazwa_pliku)
 
-            # Pomijamy podfoldery, interesują nas tylko pliki
             if not os.path.isfile(sciezka_pliku):
                 continue
 
-            # --- OBSŁUGA PLIKU .txt ---
+            # --- OBSŁUGA PLIKU .txt (TWOJ FORMAT: Nazwa:ip) ---
             if nazwa_pliku.endswith('.txt'):
                 try:
                     with open(sciezka_pliku, 'r', encoding='utf-8') as f:
                         for nr_linii, linia in enumerate(f, 1):
-                            # Sprawdzamy, czy szukany user (małymi literami) jest w linii
+                            linia = linia.strip()
+                            if not linia:  # pomijamy puste linie
+                                continue
+                                
+                            # Sprawdzamy, czy linia zawiera szukanego użytkownika
                             if szukany_user_lower in linia.lower():
-                                # Przykład parsowania linii (zakładamy format: nick, ip, czas)
-                                czesci = linia.strip().split(',')
-                                if len(czesci) >= 3:
+                                # Próba sparsowania formatu "Nazwa:ip"
+                                if ':' in linia:
+                                    czesci = linia.split(':', 1)  # dzielimy tylko przy pierwszym dwukropku
+                                    nazwa = czesci[0].strip()
+                                    ip = czesci[1].strip() if len(czesci) > 1 else ""
+                                    
                                     znalezione_wyniki.append({
                                         "plik": nazwa_pliku,
                                         "typ": "txt",
                                         "linia": nr_linii,
-                                        "nick": czesci[0].strip(),
-                                        "ip": czesci[1].strip(),
-                                        "czas": czesci[2].strip()
+                                        "nick": nazwa,
+                                        "ip": ip,
+                                        "czas": None  # brak czasu w Twoim formacie
                                     })
                                 else:
-                                    # Jeśli format inny, zwracamy surową linię
+                                    # Jeśli format inny niż oczekiwany
                                     znalezione_wyniki.append({
                                         "plik": nazwa_pliku,
                                         "typ": "txt",
                                         "linia": nr_linii,
-                                        "surowe_dane": linia.strip()
+                                        "surowe_dane": linia,
+                                        "uwaga": "Nieprawidłowy format (brak ':')"
                                     })
                 except Exception as e:
                     print(f"Błąd podczas czytania pliku {nazwa_pliku}: {e}")
 
-            # --- OBSŁUGA PLIKU .json ---
+            # --- OBSŁUGA PLIKU .json (bez zmian) ---
             elif nazwa_pliku.endswith('.json'):
                 try:
                     with open(sciezka_pliku, 'r', encoding='utf-8') as f:
-                        dane_json = json.load(f)  # Zakładamy, że plik JSON to lista obiektów
-
-                        # Sprawdzamy, czy dane_json to lista (np. [{"user": "test", "ip": "..."}, ...])
+                        dane_json = json.load(f)
                         if isinstance(dane_json, list):
                             for index, element in enumerate(dane_json):
-                                # Przeszukujemy wartości w każdym elemencie JSON (słowniku)
-                                # To jest prostsze podejście: szukamy w wartościach (jako string)
                                 if szukany_user_lower in str(element).lower():
-                                    # Dodajemy cały element jako znalezisko
                                     znalezione_wyniki.append({
                                         "plik": nazwa_pliku,
                                         "typ": "json",
