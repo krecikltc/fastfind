@@ -10,19 +10,29 @@ app = Flask(__name__)
 # Konfiguracja
 FOLDER_Z_DANYMI = 'dane'
 PLIK_Z_KLIENTAMI = 'klienci.json'
-HASLO_ADMINA = "segz!"  # <- ZMIEN TO!
+HASLO_ADMINA = "twoje-tajne-haslo-zmien-to!"  # <- ZMIEN TO!
 
 # ============================================
 # FUNKCJE POMOCNICZE
 # ============================================
 
 def wczytaj_klientow():
+    """Wczytuje klientów z pliku JSON"""
     if not os.path.exists(PLIK_Z_KLIENTAMI):
+        # Jeśli plik nie istnieje, utwórz pusty
+        with open(PLIK_Z_KLIENTAMI, 'w', encoding='utf-8') as f:
+            json.dump({}, f)
         return {}
-    with open(PLIK_Z_KLIENTAMI, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    
+    try:
+        with open(PLIK_Z_KLIENTAMI, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        # Jeśli błąd odczytu, zwróć pusty słownik
+        return {}
 
 def zapisz_klientow(klienci):
+    """Zapisuje klientów do pliku JSON"""
     with open(PLIK_Z_KLIENTAMI, 'w', encoding='utf-8') as f:
         json.dump(klienci, f, indent=2, ensure_ascii=False)
 
@@ -39,12 +49,8 @@ def sprawdz_klienta(owner):
     
     return True, wazny_do
 
-def generuj_token():
-    """Generuje unikalny token"""
-    return secrets.token_hex(8)
-
 # ============================================
-# FUNKCJA WYSZUKIWANIA (Twoja oryginalna)
+# FUNKCJA WYSZUKIWANIA
 # ============================================
 
 def szukaj_w_plikach(szukany_user):
@@ -155,7 +161,7 @@ def api_search():
     })
 
 # ============================================
-# PANEL ADMINISTRATORA (dla Ciebie z CSS)
+# PANEL ADMINISTRATORA
 # ============================================
 
 # Szablon HTML z CSS dla panelu admina
@@ -443,35 +449,6 @@ PANEL_HTML = '''
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
-        /* Tooltip */
-        .tooltip {
-            position: relative;
-            display: inline-block;
-            cursor: help;
-        }
-        
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: 200px;
-            background: #333;
-            color: white;
-            text-align: center;
-            padding: 5px;
-            border-radius: 5px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -100px;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
     </style>
 </head>
 <body>
@@ -482,7 +459,7 @@ PANEL_HTML = '''
                 🔐 FastFind API - Panel Administratora
                 <span>v2.0</span>
             </h1>
-            <div class="stats">
+            <div class="stats" id="statsContainer">
                 <div class="stat-box">
                     <div class="number" id="aktywniCount">0</div>
                     <div class="label">Aktywni klienci</div>
@@ -500,8 +477,8 @@ PANEL_HTML = '''
         
         <!-- Komunikaty -->
         {% if message %}
-        <div class="alert alert-{{ message.type }}">
-            {{ message.text }}
+        <div class="alert alert-{{ message_type }}">
+            {{ message }}
         </div>
         {% endif %}
         
@@ -512,16 +489,16 @@ PANEL_HTML = '''
                 <h2>
                     <i>➕</i> Dodaj nowego klienta
                 </h2>
-                <form method="POST" action="/admin/add">
+                <form method="POST" action="/admin/add?auth={{ auth }}">
                     <div class="form-group">
                         <label>Nazwa klienta (owner):</label>
                         <input type="text" name="owner" required 
                                placeholder="np. janek123, firma_kowalski">
                     </div>
                     <div class="form-group">
-                        <label>Email klienta:</label>
-                        <input type="email" name="email" required 
-                               placeholder="klient@example.com">
+                        <label>Discord klienta:</label>
+                        <input type="text" name="discord" required 
+                               placeholder="np. janek#1234 lub @janek">
                     </div>
                     <div class="form-group">
                         <label>Czas dostępu:</label>
@@ -555,7 +532,7 @@ PANEL_HTML = '''
                 
                 <div style="margin-bottom: 20px;">
                     <h3>Przedłuż klienta</h3>
-                    <form method="POST" action="/admin/extend" style="display: flex; gap: 10px;">
+                    <form method="POST" action="/admin/extend?auth={{ auth }}" style="display: flex; gap: 10px;">
                         <input type="text" name="owner" placeholder="Nazwa klienta" required style="flex: 2;">
                         <select name="dni" style="flex: 1;">
                             <option value="1">+1</option>
@@ -591,7 +568,7 @@ PANEL_HTML = '''
                 <thead>
                     <tr>
                         <th>Owner</th>
-                        <th>Email</th>
+                        <th>Discord</th>
                         <th>Ważny do</th>
                         <th>Status</th>
                         <th>Dni</th>
@@ -604,7 +581,7 @@ PANEL_HTML = '''
                     {% set aktywny = wazny_do > now %}
                     <tr>
                         <td><strong>{{ owner }}</strong></td>
-                        <td>{{ dane.email }}</td>
+                        <td>{{ dane.discord }}</td>
                         <td>{{ dane.wazny_do[:10] }} {{ dane.wazny_do[11:16] }}</td>
                         <td>
                             {% if aktywny %}
@@ -615,7 +592,7 @@ PANEL_HTML = '''
                         </td>
                         <td>{{ dane.dni }} dni</td>
                         <td>
-                            <form method="POST" action="/admin/delete" style="display: inline;">
+                            <form method="POST" action="/admin/delete?auth={{ auth }}" style="display: inline;">
                                 <input type="hidden" name="owner" value="{{ owner }}">
                                 <button type="submit" class="btn-small btn-danger" 
                                         onclick="return confirm('Na pewno usunąć?')">
@@ -643,7 +620,7 @@ PANEL_HTML = '''
                 <div>
                     <h3>Endpoint:</h3>
                     <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">
-GET https://twoja-domena.pl/api/search
+GET https://{{ request.host }}/api/search
                     </pre>
                     
                     <h3 style="margin-top: 20px;">Parametry:</h3>
@@ -656,7 +633,7 @@ GET https://twoja-domena.pl/api/search
                 <div>
                     <h3>Przykład zapytania:</h3>
                     <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">
-https://twoja-domena.pl/api/search?owner=janek123&user=Admin
+https://{{ request.host }}/api/search?owner=janek123&user=Admin
                     </pre>
                     
                     <h3 style="margin-top: 20px;">Przykład odpowiedzi:</h3>
@@ -704,20 +681,25 @@ https://twoja-domena.pl/api/search?owner=janek123&user=Admin
                 });
         }
         
-        // Aktualizacja statystyk
+        // Funkcja do aktualizacji statystyk
         function updateStats() {
-            fetch('/admin/stats')
+            const auth = "{{ auth }}";
+            
+            fetch(`/admin/stats?auth=${auth}`)
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('aktywniCount').textContent = data.aktywni;
                     document.getElementById('wygasliCount').textContent = data.wygasli;
                     document.getElementById('plikiCount').textContent = data.pliki;
+                })
+                .catch(error => {
+                    console.log('Błąd statystyk:', error);
                 });
         }
         
-        // Odświeżaj statystyki co 30 sekund
-        setInterval(updateStats, 30000);
+        // Aktualizuj statystyki od razu i co 30 sekund
         updateStats();
+        setInterval(updateStats, 30000);
     </script>
 </body>
 </html>
@@ -726,8 +708,8 @@ https://twoja-domena.pl/api/search?owner=janek123&user=Admin
 @app.route('/admin', methods=['GET'])
 def admin_panel():
     """Główny panel admina"""
-    # Sprawdź hasło w sesji (uproszczone - przez URL)
     auth = request.args.get('auth')
+    
     if auth != HASLO_ADMINA:
         return '''
         <!DOCTYPE html>
@@ -748,27 +730,41 @@ def admin_panel():
                     padding: 40px;
                     border-radius: 10px;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                    width: 300px;
                 }
-                input, button {
-                    padding: 10px;
-                    margin: 10px 0;
+                h2 {
+                    color: #333;
+                    margin-bottom: 20px;
+                    text-align: center;
+                }
+                input {
                     width: 100%;
+                    padding: 12px;
+                    margin: 10px 0;
                     border: 2px solid #ddd;
                     border-radius: 5px;
+                    font-size: 14px;
                 }
                 button {
+                    width: 100%;
+                    padding: 12px;
                     background: #667eea;
                     color: white;
                     border: none;
+                    border-radius: 5px;
+                    font-size: 16px;
                     cursor: pointer;
+                }
+                button:hover {
+                    background: #5a67d8;
                 }
             </style>
         </head>
         <body>
             <div class="login-box">
-                <h2>Panel Admina - Logowanie</h2>
+                <h2>🔐 Panel Admina</h2>
                 <form method="GET">
-                    <input type="password" name="auth" placeholder="Hasło">
+                    <input type="password" name="auth" placeholder="Hasło" required>
                     <button type="submit">Zaloguj</button>
                 </form>
             </div>
@@ -778,35 +774,46 @@ def admin_panel():
     
     klienci = wczytaj_klientow()
     
-    # Dodaj funkcję datetime do szablonu
+    # Dodaj filtr datetime do szablonu
     def datetime_filter(date_str):
-        return datetime.fromisoformat(date_str)
+        try:
+            return datetime.fromisoformat(date_str)
+        except:
+            return datetime.now()
     
     app.jinja_env.filters['datetime'] = datetime_filter
+    
+    message = request.args.get('message')
+    message_type = request.args.get('message_type')
     
     return render_template_string(
         PANEL_HTML, 
         klienci=klienci, 
         now=datetime.now(),
-        message=request.args.get('message'),
-        message_type=request.args.get('message_type')
+        message=message,
+        message_type=message_type,
+        auth=auth
     )
 
 @app.route('/admin/add', methods=['POST'])
 def admin_add():
     """Dodaje nowego klienta"""
-    auth = request.args.get('auth', request.form.get('auth', ''))
+    auth = request.args.get('auth')
     if auth != HASLO_ADMINA:
-        return redirect('/admin?auth=' + HASLO_ADMINA + '&message=Brak uprawnień&message_type=error')
+        return redirect(f'/admin?auth={auth}&message=Brak uprawnień&message_type=error')
     
     owner = request.form.get('owner')
-    email = request.form.get('email')
+    discord = request.form.get('discord')
     dni = int(request.form.get('dni', 7))
     
-    if not owner or not email:
-        return redirect(f'/admin?auth={HASLO_ADMINA}&message=Brak wymaganych pól&message_type=error')
+    if not owner or not discord:
+        return redirect(f'/admin?auth={auth}&message=Brak wymaganych pól&message_type=error')
     
     klienci = wczytaj_klientow()
+    
+    # Sprawdź czy owner już istnieje
+    if owner in klienci:
+        return redirect(f'/admin?auth={auth}&message=Klient {owner} już istnieje&message_type=error')
     
     wazny_do = datetime.now().replace(hour=23, minute=59, second=59)
     wazny_do += timedelta(days=dni)
@@ -815,36 +822,37 @@ def admin_add():
         "wazny_do": wazny_do.isoformat(),
         "utworzono": datetime.now().isoformat(),
         "dni": dni,
-        "email": email
+        "discord": discord
     }
     
     zapisz_klientow(klienci)
     
-    return redirect(f'/admin?auth={HASLO_ADMINA}&message=Dodano klienta {owner}&message_type=success')
+    return redirect(f'/admin?auth={auth}&message=Dodano klienta {owner} (Discord: {discord})&message_type=success')
 
 @app.route('/admin/delete', methods=['POST'])
 def admin_delete():
     """Usuwa klienta"""
-    auth = request.args.get('auth', request.form.get('auth', ''))
+    auth = request.args.get('auth')
     if auth != HASLO_ADMINA:
-        return redirect('/admin?auth=' + HASLO_ADMINA + '&message=Brak uprawnień&message_type=error')
+        return redirect(f'/admin?auth={auth}&message=Brak uprawnień&message_type=error')
     
     owner = request.form.get('owner')
     klienci = wczytaj_klientow()
     
     if owner in klienci:
+        discord = klienci[owner].get('discord', 'nieznany')
         del klienci[owner]
         zapisz_klientow(klienci)
-        return redirect(f'/admin?auth={HASLO_ADMINA}&message=Usunięto {owner}&message_type=success')
+        return redirect(f'/admin?auth={auth}&message=Usunięto {owner} (Discord: {discord})&message_type=success')
     
-    return redirect(f'/admin?auth={HASLO_ADMINA}&message=Nie znaleziono {owner}&message_type=error')
+    return redirect(f'/admin?auth={auth}&message=Nie znaleziono {owner}&message_type=error')
 
 @app.route('/admin/extend', methods=['POST'])
 def admin_extend():
     """Przedłuża klienta"""
-    auth = request.args.get('auth', request.form.get('auth', ''))
+    auth = request.args.get('auth')
     if auth != HASLO_ADMINA:
-        return redirect('/admin?auth=' + HASLO_ADMINA + '&message=Brak uprawnień&message_type=error')
+        return redirect(f'/admin?auth={auth}&message=Brak uprawnień&message_type=error')
     
     owner = request.form.get('owner')
     dni = int(request.form.get('dni', 7))
@@ -853,13 +861,14 @@ def admin_extend():
     
     if owner in klienci:
         stara_data = datetime.fromisoformat(klienci[owner]['wazny_do'])
+        # Przedłuż od aktualnej daty ważności (nie od dziś)
         nowa_data = stara_data + timedelta(days=dni)
         klienci[owner]['wazny_do'] = nowa_data.isoformat()
         klienci[owner]['dni'] = klienci[owner].get('dni', 1) + dni
         zapisz_klientow(klienci)
-        return redirect(f'/admin?auth={HASLO_ADMINA}&message=Przedłużono {owner} o {dni} dni&message_type=success')
+        return redirect(f'/admin?auth={auth}&message=Przedłużono {owner} o {dni} dni&message_type=success')
     
-    return redirect(f'/admin?auth={HASLO_ADMINA}&message=Nie znaleziono {owner}&message_type=error')
+    return redirect(f'/admin?auth={auth}&message=Nie znaleziono {owner}&message_type=error')
 
 @app.route('/admin/stats', methods=['GET'])
 def admin_stats():
@@ -875,16 +884,19 @@ def admin_stats():
     wygasli = 0
     
     for dane in klienci.values():
-        wazny_do = datetime.fromisoformat(dane['wazny_do'])
-        if teraz <= wazny_do:
-            aktywni += 1
-        else:
+        try:
+            wazny_do = datetime.fromisoformat(dane['wazny_do'])
+            if teraz <= wazny_do:
+                aktywni += 1
+            else:
+                wygasli += 1
+        except:
             wygasli += 1
     
     # Policz pliki
     pliki = 0
     if os.path.exists(FOLDER_Z_DANYMI):
-        pliki = len([f for f in os.listdir(FOLDER_Z_DANYMI) if f.endswith(('.txt', '.json'))])
+        pliki = len([f for f in os.listdir(FOLDER_Z_DANYMI) if os.path.isfile(os.path.join(FOLDER_Z_DANYMI, f))])
     
     return jsonify({
         "aktywni": aktywni,
@@ -902,6 +914,12 @@ if __name__ == '__main__':
     if not os.path.exists(FOLDER_Z_DANYMI):
         os.makedirs(FOLDER_Z_DANYMI)
         print(f"📁 Utworzono folder {FOLDER_Z_DANYMI}")
+    
+    # Utwórz plik klienci.json jeśli nie istnieje
+    if not os.path.exists(PLIK_Z_KLIENTAMI):
+        with open(PLIK_Z_KLIENTAMI, 'w', encoding='utf-8') as f:
+            json.dump({}, f)
+        print(f"📁 Utworzono plik {PLIK_Z_KLIENTAMI}")
     
     print("=" * 50)
     print("🚀 FastFind API - Panel Admina uruchomiony!")
